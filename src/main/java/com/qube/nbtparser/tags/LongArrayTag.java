@@ -18,7 +18,7 @@ public class LongArrayTag extends Tag {
         index = 0;
     }
 
-    public void add(int value) {
+    public void add(long value) {
         content[index] = value;
         index++;
     }

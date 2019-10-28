@@ -11,46 +11,9 @@ import java.util.Stack;
 
 public class NBTParser {
 
-    // Tag representations
-    static final int END_TAG = 0,
-            BYTE_TAG = 1,
-            SHORT_TAG = 2,
-            INT_TAG = 3,
-            LONG_TAG = 4,
-            FLOAT_TAG = 5,
-            DOUBLE_TAG = 6,
-            BYTE_ARRAY_TAG = 7,
-            STRING_TAG = 8,
-            LIST_TAG = 9,
-            COMPOUND_TAG = 10,
-            INT_ARRAY_TAG = 11,
-            LONG_ARRAY_TAG = 12;
-
     private DataInputStream in;
     private Stack<CompoundTag> stack;
     private CompoundTag root;
-
-    /**
-     * Parser constructor that accepts String parameter
-     *
-     * @param file String path to file
-     * @throws IOException
-     */
-    public NBTParser(String file) throws IOException {
-        this.in = new DataInputStream(new FileInputStream(file));
-        this.stack = new Stack<>();
-    }
-
-    /**
-     * Parser constructor that accepts File instance parameter
-     *
-     * @param file File instance
-     * @throws IOException
-     */
-    public NBTParser(File file) throws IOException {
-        this.in = new DataInputStream(new FileInputStream(file));
-        this.stack = new Stack<>();
-    }
 
     /**
      * Parser constructor that accepts InputStream parameter
@@ -71,48 +34,59 @@ public class NBTParser {
      * @return Tag
      * @throws IOException
      */
-    private Tag readTag(String name, int tagType) throws IOException {
+    private Tag readTag(String name, int tagType) throws IOException { // TODO: String formatting
         int length;
         int count;
+
         switch (tagType) {
-            case END_TAG:
+            case TagConstants.END_TAG:
                 if (!stack.isEmpty()) {
                     stack.pop();
                 }
                 return new EndTag();
-            case BYTE_TAG:
+
+            case TagConstants.BYTE_TAG:
                 return new ByteTag(name, in.readByte());
-            case SHORT_TAG:
+
+            case TagConstants.SHORT_TAG:
                 return new ShortTag(name, in.readShort());
-            case INT_TAG:
+
+            case TagConstants.INT_TAG:
                 return new IntTag(name, in.readInt());
-            case LONG_TAG:
+
+            case TagConstants.LONG_TAG:
                 return new LongTag(name, in.readLong());
-            case FLOAT_TAG:
+
+            case TagConstants.FLOAT_TAG:
                 return new FloatTag(name, in.readFloat());
-            case DOUBLE_TAG:
+
+            case TagConstants.DOUBLE_TAG:
                 return new DoubleTag(name, in.readDouble());
-            case BYTE_ARRAY_TAG:
+
+            case TagConstants.BYTE_ARRAY_TAG:
                 length = in.readInt();
                 byte[] byteArray = new byte[length];
                 in.read(byteArray);
                 return new ByteArrayTag(name, byteArray);
-            case STRING_TAG:
+
+            case TagConstants.STRING_TAG:
                 length = in.readShort();
                 byte[] stringByteArray = new byte[length];
                 in.read(stringByteArray);
                 return new StringTag(name, new String(stringByteArray));
-            case LIST_TAG: // TODO: add type to ListTag + String formatting
-                ListTag tag = new ListTag(name);
+
+            case TagConstants.LIST_TAG: // TODO: add type to ListTag + String formatting
+                ListTag newListTag = new ListTag(name);
                 int innerType = in.read();
                 count = in.readInt();
 
                 for (int i = 0; i < count; i++) {
                     Tag newTag = readTag("None", innerType);
-                    tag.add(newTag);
+                    newListTag.add(newTag);
                 }
-                return tag;
-            case COMPOUND_TAG: // TODO: add String Formatting
+                return newListTag;
+
+            case TagConstants.COMPOUND_TAG:
                 CompoundTag newCompound = new CompoundTag(name);
 
                 if (stack.isEmpty()) {
@@ -121,7 +95,7 @@ public class NBTParser {
 
                 int innerTagID;
                 Tag innerTag;
-                while ((innerTagID = in.read()) != END_TAG) {
+                while ((innerTagID = in.read()) != TagConstants.END_TAG) {
                     innerTag = readTag(getTagNameFromStream(), innerTagID);
                     newCompound.add(innerTag);
                 }
@@ -132,18 +106,26 @@ public class NBTParser {
                 stack.push(newCompound);
 
                 return newCompound;
-            case INT_ARRAY_TAG: // TODO: Implement Int_Array_Tag
-                count = in.readInt();
-                for (int i = 0; i < count; i++) {
 
+            case TagConstants.INT_ARRAY_TAG:
+                count = in.readInt();
+                IntArrayTag newIntArrayTag = new IntArrayTag(name, count);
+                for (int i = 0; i < count; i++) {
+                    newIntArrayTag.add(in.readInt());
                 }
-                break;
-            case LONG_ARRAY_TAG: // TODO: Implement Long_Array_Tag
-                break;
+                return newIntArrayTag;
+
+            case TagConstants.LONG_ARRAY_TAG:
+                count = in.readInt();
+                LongArrayTag newLongArrayTag = new LongArrayTag(name, count);
+                for (int i = 0; i < count; i++) {
+                    newLongArrayTag.add(in.readLong());
+                }
+                return newLongArrayTag;
+
             default:
-                System.out.println("Invalid tag");
+                throw new IOException("Invalid Tag");
         }
-        return null;
     }
 
     /**
@@ -151,7 +133,7 @@ public class NBTParser {
      *
      * @return CompoundTag
      */
-    public Tag getRoot() {
+    public CompoundTag getRoot() {
         return this.root;
     }
 
@@ -168,21 +150,15 @@ public class NBTParser {
         return new String(nameArray);
     }
 
+    /**
+     * Parse the NBT stream
+     *
+     * @throws IOException
+     */
     public void parse() throws IOException {
-        CompoundTag root = null;
-        // TODO: HANDLING, Check whether Compound tag is present, handle error during parsing
         int type = in.read();
+        if (type != TagConstants.COMPOUND_TAG) throw new IOException("NBT contents must be enclosed in a CompoundTag");
         String name = getTagNameFromStream();
         this.root = (CompoundTag) readTag(name, type);
-    }
-
-    // Example
-    public static void main(String[] args) throws IOException {
-        NBTParser nbt = new NBTParser("bigtest-uncompressed.nbt");
-
-        nbt.parse();
-        CompoundTag root = (CompoundTag) nbt.getRoot();
-
-        System.out.println(root.toString());
     }
 }
